@@ -1,48 +1,67 @@
 const express = require("express");
 const router = express.Router();
 const Post = require("../schemas/post");
+const User = require("../schemas/user");
 const mongoose = require("mongoose");
 const { ObjectId } = mongoose.Types;
+const authMiddleware = require("../security/auth-middleware");
+
+// router.use(authMiddleware);
 
 router
     .route("/")
     .get(async (req, res) => {
         try {
-            const result = await Post.find({}).sort({ createdAt: -1 });
-            return res.status(200).send(
-                result.map((data) => {
+            const result = await Post.find({}).sort({ createdAt: -1 }).populate("userId").exec();
+            console.log(result);
+            return res.status(200).json({
+                posts: result.map((data) => {
                     return {
                         postId: data._id,
-                        user: data.user,
+                        userId: data.userId._id,
+                        nickname: data.userId.nickname,
                         title: data.title,
                         createdAt: data.createdAt,
+                        updatedAt: data.updatedAt
                     };
-                })
-            );
+                }),
+            });
         } catch (err) {
-            console.error(`GET / Error Message: ${err}`);
+            console.error(`GET /api/posts Error Message: ${err}`);
             return res.status(500).json({ message: "Internal Server Error" });
         }
     })
-    .post(async (req, res) => {
-        const { user, password, title, content } = req.body;
+    .post(authMiddleware, async (req, res) => {
+        // const { user, password, title, content } = req.body;
+        const { nickname, _id } = res.locals.user;
+        const { title, content } = req.body;
 
-        if (!user || !password || !title || !content) {
+        // 완료?    # 412 body 데이터가 정상적으로 전달되지 않는 경우
+        //          {"errorMessage": "데이터 형식이 올바르지 않습니다."}
+        // # 412 Title의 형식이 비정상적인 경우
+        // {"errorMessage": "게시글 제목의 형식이 일치하지 않습니다."}
+        // # 412 Content의 형식이 비정상적인 경우
+        // {"errorMessage": "게시글 내용의 형식이 일치하지 않습니다."}
+        // # 403 Cookie가 존재하지 않을 경우
+        // {"errorMessage": "로그인이 필요한 기능입니다."}
+        // # 403 Cookie가 비정상적이거나 만료된 경우
+        // {"errorMessage": "전달된 쿠키에서 오류가 발생하였습니다."}
+        // # 400 예외 케이스에서 처리하지 못한 에러
+        // {"errorMessage": "게시글 작성에 실패하였습니다."}
+        if (!title || !content) {
             return res
-                .status(400)
+                .status(412)
                 .json({ message: "데이터 형식이 올바르지 않습니다." });
-        } else {
-            try {
-                await Post.create({ user, password, title, content });
-                return res
-                    .status(200)
-                    .json({ message: "게시글을 생성하였습니다." });
-            } catch (err) {
-                console.error(`POST / error message: ${err}`);
-                return res
-                    .status(500)
-                    .json({ message: "Internal Server Error" });
-            }
+        }
+
+        try {
+            await Post.create({ userId: _id, user: nickname, title, content });
+            return res
+                .status(201)
+                .json({ message: "게시글을 생성하였습니다." });
+        } catch (err) {
+            console.error(`POST /api/posts error message: ${err}`);
+            return res.status(500).json({ message: "Internal Server Error" });
         }
     });
 
@@ -73,7 +92,7 @@ router
                         .json({ message: "게시글 조회에 실패하였습니다." });
                 }
             } catch (err) {
-                console.error(`GET /:id Error Message: ${err}`);
+                console.error(`GET /api/posts/:id Error Message: ${err}`);
                 return res
                     .status(500)
                     .json({ message: "Internal Server Error" });
@@ -112,7 +131,7 @@ router
                     }
                 }
             } catch (err) {
-                console.error(`PUT /:id Error Message: ${err}`);
+                console.error(`PUT /api/posts/:id Error Message: ${err}`);
                 return res
                     .status(500)
                     .json({ message: "Internal Server Error" });
@@ -148,7 +167,7 @@ router
                     }
                 }
             } catch (err) {
-                console.error(`DELETE /:id Error Message: ${err}`);
+                console.error(`DELETE /api/posts/:id Error Message: ${err}`);
                 return res
                     .status(500)
                     .json({ message: "Internal Server Error" });
