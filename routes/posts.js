@@ -125,14 +125,11 @@ router
                         .json({ message: "게시글 조회에 실패하였습니다." });
                 }
                 if (nickname !== post.user) {
-                    return res
-                        .status(403)
-                        .json({
-                            errorMessage:
-                                "게시글 수정의 권한이 존재하지 않습니다.",
-                        });
+                    return res.status(403).json({
+                        errorMessage: "게시글 수정의 권한이 존재하지 않습니다.",
+                    });
                 }
-                
+
                 await Post.updateOne({ _id: id }, { content, title });
                 return res
                     .status(200)
@@ -145,11 +142,11 @@ router
             }
         }
     })
-    .delete(async (req, res) => {
+    .delete(authMiddleware, async (req, res) => {
         const { id } = req.params;
-        const { password } = req.body;
+        const { nickname } = res.locals.user;
 
-        if (!ObjectId.isValid(id) || !password) {
+        if (!ObjectId.isValid(id)) {
             res.status(400).json({
                 message: "데이터 형식이 올바르지 않습니다.",
             });
@@ -158,21 +155,24 @@ router
                 const post = await Post.findOne({ _id: id });
 
                 if (!post) {
-                    res.status(400).json({
+                    return res.status(400).json({
                         message: "게시글 조회에 실패하였습니다.",
                     });
-                } else {
-                    if (post.password === password) {
-                        await Post.deleteOne({ _id: id });
-                        return res
-                            .status(200)
-                            .json({ message: "게시글은 삭제하였습니다." });
-                    } else {
-                        return res
-                            .status(400)
-                            .json({ message: "비밀번호가 일치하지 않습니다." });
-                    }
                 }
+
+                if (nickname !== post.user) {
+                    return res
+                        .status(403)
+                        .json({
+                            errorMessage:
+                                "게시글을 삭제할 권힌이 존재하지 않습니다.",
+                        });
+                }
+
+                await Post.deleteOne({ _id: id });
+                return res
+                    .status(200)
+                    .json({ message: "게시글을 삭제하였습니다." });
             } catch (err) {
                 console.error(`DELETE /api/posts/:id Error Message: ${err}`);
                 return res
