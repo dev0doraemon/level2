@@ -109,6 +109,7 @@ router
     .put(authMiddleware, async (req, res) => {
         const { id } = req.params;
         const { title, content } = req.body;
+        const { nickname } = res.locals.user;
 
         if (!ObjectId.isValid(id) || !title | !content) {
             res.status(412).json({
@@ -123,6 +124,15 @@ router
                         .status(400)
                         .json({ message: "게시글 조회에 실패하였습니다." });
                 }
+                if (nickname !== post.user) {
+                    return res
+                        .status(403)
+                        .json({
+                            errorMessage:
+                                "게시글 수정의 권한이 존재하지 않습니다.",
+                        });
+                }
+                
                 await Post.updateOne({ _id: id }, { content, title });
                 return res
                     .status(200)
