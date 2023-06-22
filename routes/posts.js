@@ -12,7 +12,10 @@ router
     .route("/")
     .get(async (req, res) => {
         try {
-            const result = await Post.find({}).sort({ createdAt: -1 }).populate("userId").exec();
+            const result = await Post.find({})
+                .sort({ createdAt: -1 })
+                .populate("userId")
+                .exec();
             console.log(result);
             return res.status(200).json({
                 posts: result.map((data) => {
@@ -22,7 +25,7 @@ router
                         nickname: data.userId.nickname,
                         title: data.title,
                         createdAt: data.createdAt,
-                        updatedAt: data.updatedAt
+                        updatedAt: data.updatedAt,
                     };
                 }),
             });
@@ -76,15 +79,19 @@ router
                 .json({ message: "데이터 형식이 올바르지 않습니다." });
         } else {
             try {
-                const result = await Post.findOne({ _id: id });
+                const result = await Post.findOne({ _id: id })
+                    .populate("userId")
+                    .exec();
 
                 if (result) {
                     return res.status(200).send({
                         postId: result._id,
-                        user: result.user,
+                        userId: result.userId._id,
+                        user: result.userId.nickname,
                         title: result.title,
                         content: result.content,
                         createdAt: result.createdAt,
+                        updatedAt: result.updatedAt,
                     });
                 } else {
                     return res
@@ -99,12 +106,12 @@ router
             }
         }
     })
-    .put(async (req, res) => {
+    .put(authMiddleware, async (req, res) => {
         const { id } = req.params;
-        const { user, content, password, title } = req.body;
+        const { title, content } = req.body;
 
-        if (!ObjectId.isValid(id) || !user || !password || !title | !content) {
-            res.status(400).json({
+        if (!ObjectId.isValid(id) || !title | !content) {
+            res.status(412).json({
                 message: "데이터 형식이 올바르지 않습니다.",
             });
         } else {
@@ -115,21 +122,11 @@ router
                     return res
                         .status(400)
                         .json({ message: "게시글 조회에 실패하였습니다." });
-                } else {
-                    if (post.password === password) {
-                        await Post.updateOne(
-                            { _id: id },
-                            { user, content, title }
-                        );
-                        return res
-                            .status(200)
-                            .json({ message: "게시글을 수정하였습니다." });
-                    } else {
-                        return res
-                            .status(400)
-                            .json({ message: "비밀번호가 일치하지 않습니다." });
-                    }
                 }
+                await Post.updateOne({ _id: id }, { content, title });
+                return res
+                    .status(200)
+                    .json({ message: "게시글을 수정하였습니다." });
             } catch (err) {
                 console.error(`PUT /api/posts/:id Error Message: ${err}`);
                 return res
