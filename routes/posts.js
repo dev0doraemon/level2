@@ -156,9 +156,4 @@ router
         }
     });
 
-router.use((err, req, res, next) => {
-    console.error(`Error Message: ${err.stack}`);
-    return res.status(500).send("Internal Server Error");
-});
-
 module.exports = router;
