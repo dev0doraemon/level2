@@ -73,15 +73,18 @@ router
 
 router
     .route("/:id")
-    .put(async (req, res) => {
+    .put(authMiddleware, async (req, res) => {
         const { id } = req.params;
-        const { content, password } = req.body;
+        const { content } = req.body;
+        const { nickname } = res.locals.user;
 
         if (!content) {
             return res
                 .status(400)
                 .json({ message: "댓글 내용을 입력해주세요" });
-        } else if (!ObjectId.isValid(id) || !password) {
+        }
+
+        if (!ObjectId.isValid(id)) {
             return res
                 .status(400)
                 .json({ message: "데이터 형식이 올바르지 않습니다." });
@@ -91,23 +94,19 @@ router
 
                 if (!comment) {
                     return res
-                        .status(400)
-                        .json({ message: "댓글 조회에 실패하였습니다." });
-                } else {
-                    if (comment.password === password) {
-                        await Comment.updateOne(
-                            { _id: id, password },
-                            { content }
-                        );
-                        return res
-                            .status(200)
-                            .json({ message: "댓글을 수정하였습니다." });
-                    } else {
-                        return res
-                            .status(400)
-                            .json({ message: "비밀번호가 일치하지 않습니다." });
-                    }
+                        .status(404)
+                        .json({ message: "댓글이 존재하지 않습니다." });
                 }
+                if (nickname !== comment.user) {
+                    return res.status(403).json({
+                        errorMessage: "댓글의 수정 권한이 존재하지 않습니다.",
+                    });
+                }
+
+                await Comment.updateOne({ _id: id }, { content });
+                return res
+                    .status(200)
+                    .json({ message: "댓글을 수정하였습니다." });
             } catch (err) {
                 console.error(`comment put error : ${err}`);
                 return res
@@ -116,40 +115,38 @@ router
             }
         }
     })
-    .delete(async (req, res) => {
+    .delete(authMiddleware, async (req, res) => {
         const { id } = req.params;
-        const { password } = req.body;
+        const { nickname } = res.locals.user;
 
-        if (!ObjectId.isValid(id) || !password) {
+        if (!ObjectId.isValid(id)) {
             return res
                 .status(400)
                 .json({ message: "데이터 형식이 올바르지 않습니다." });
-        } else {
-            try {
-                const comment = await Comment.findOne({ _id: id });
+        }
 
-                if (!comment) {
-                    res.status(400).json({
-                        message: "댓글 조회에 실패하였습니다.",
-                    });
-                } else {
-                    if (comment.password === password) {
-                        await Comment.deleteOne({ _id: id, password });
-                        return res
-                            .status(200)
-                            .json({ message: "댓글을 삭제하였습니다." });
-                    } else {
-                        return res
-                            .status(400)
-                            .json({ message: "비밀번호가 일치하지 않습니다." });
-                    }
-                }
-            } catch (err) {
-                console.error(`comments delete error message: ${err}`);
-                return res
-                    .status(500)
-                    .json({ message: "Internal Server Error" });
+        try {
+            const comment = await Comment.findOne({ _id: id });
+
+            if (!comment) {
+                return res.status(404).json({
+                    message: "댓글이 존재하지 않습니다.",
+                });
             }
+
+            if (nickname !== comment.user) {
+                return res
+                    .status(403)
+                    .json({
+                        errorMessage: "댓글의 삭제 권한이 존재하지 않습니다.",
+                    });
+            }
+
+            await Comment.deleteOne({ _id: id });
+            return res.status(200).json({ message: "댓글을 삭제하였습니다." });
+        } catch (err) {
+            console.error(`comments delete error message: ${err}`);
+            return res.status(500).json({ message: "Internal Server Error" });
         }
     });
 
