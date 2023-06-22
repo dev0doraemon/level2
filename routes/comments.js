@@ -1,7 +1,9 @@
 const express = require("express");
 const router = express.Router();
 const Comment = require("../schemas/comment");
+const Post = require("../schemas/post");
 const mongoose = require("mongoose");
+const authMiddleware = require("../security/auth-middleware");
 const { ObjectId } = mongoose.Types;
 
 router
@@ -37,31 +39,35 @@ router
             }
         }
     })
-    .post(async (req, res) => {
+    .post(authMiddleware, async (req, res) => {
         const { postId } = req.params;
-        const { user, password, content } = req.body;
+        const { content } = req.body;
+        const { nickname } = res.locals.user;
 
-        if (!content) {
-            return res
-                .status(400)
-                .json({ message: "댓글 내용을 입력해주세요." });
-        } else if (!ObjectId.isValid(postId) || !postId || !user || !password) {
-            return res
-                .status(400)
-                .json({ message: "데이터 형식이 올바르지 않습니다." });
-        } else {
-            try {
-                await Comment.create({ postId, user, password, content });
-
+        try {
+            const post = await Post.findOne({ _id: postId }).exec();
+            if (!post) {
                 return res
-                    .status(200)
-                    .json({ message: "댓글을 생성하였습니다." });
-            } catch (err) {
-                console.error(err);
-                return res
-                    .status(500)
-                    .json({ message: "Internal Server Error" });
+                    .status(404)
+                    .json({ errorMessage: "게시글이 존재하지 않습니다." });
             }
+
+            if (!content) {
+                return res
+                    .status(400)
+                    .json({ message: "댓글 내용을 입력해주세요." });
+            }
+            if (!ObjectId.isValid(postId) || !postId) {
+                return res
+                    .status(412)
+                    .json({ message: "데이터 형식이 올바르지 않습니다." });
+            }
+            await Comment.create({ postId, user: nickname, content });
+
+            return res.status(201).json({ message: "댓글을 생성하였습니다." });
+        } catch (err) {
+            console.error(err);
+            return res.status(500).json({ message: "Internal Server Error" });
         }
     });
 
