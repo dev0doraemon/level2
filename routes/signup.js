@@ -7,6 +7,21 @@ router
     .post(async (req, res) => {
         const { nickname, password, confirmPassword } = req.body;
 
+        const nicknameRegex = /^[a-zA-Z0-9]*$/;
+        if (nickname.length < 3) {
+            return res.send("닉네임은 3자 이상으로 작성해야 합니다.");
+        }
+        
+        if (!nicknameRegex.test(nickname)) {
+            return res.send("알파벳 대소문자와 숫자로 구성되어 있어야 합니다.");
+        }
+
+        if (password.length < 4) {
+            return res.send("패스워드는 4자 이상으로 작성해야 합니다.");
+        }
+        if (password.includes(nickname)) {
+            return res.send("비밀번호에는 닉네임이 포함되면 안됩니다.");
+        }
         if (password !== confirmPassword) {
             return res
                 .status(412)
